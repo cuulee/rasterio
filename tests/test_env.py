@@ -90,8 +90,9 @@ def test_env_options(gdalenv):
     assert env.options['foo'] == 'x'
     assert not env.context_options
     with env:
-        assert env.options['foo'] == 'x'
-    assert get_gdal_config('foo') is None
+        assert env.context_options['CHECK_WITH_INVERT_PROJ'] is True
+        assert env.context_options['GTIFF_IMPLICIT_JPEG_OVR'] is False
+        assert env.context_options["I'M_ON_RASTERIO"] is True
 
 
 def test_aws_session(gdalenv):
