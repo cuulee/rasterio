@@ -72,7 +72,8 @@ def test_ensure_env_decorator(gdalenv):
         return getenv()['WITH_RASTERIO_ENV']
     wrapper = ensure_env(f)
     assert wrapper() is True
-    assert 'WITH_RASTERIO_ENV' not in getenv()
+    with pytest.raises(EnvError):
+        getenv()
 
 
 def test_no_aws_gdal_config(gdalenv):
@@ -89,9 +90,8 @@ def test_env_options(gdalenv):
     assert env.options['foo'] == 'x'
     assert not env.context_options
     with env:
-        assert env.context_options['CHECK_WITH_INVERT_PROJ'] is True
-        assert env.context_options['GTIFF_IMPLICIT_JPEG_OVR'] is False
-        assert env.context_options["I'M_ON_RASTERIO"] is True
+        assert env.options['foo'] == 'x'
+    assert get_gdal_config('foo') is None
 
 
 def test_aws_session(gdalenv):
@@ -225,3 +225,30 @@ def test_rio_env_credentials_options(tmpdir, monkeypatch, runner):
     assert '"aws_secret_access_key": "bar"' in result.output
     assert '"aws_session_token": "baz"' in result.output
     monkeypatch.undo()
+
+
+def test_env_teardown_no_previous_env(gdalenv):
+    """This test guards against a regression.  A bug caused the default
+    environment options to always be reinstated in ``Env.__exit__()` in
+    the outermost environment.  In code terms, the snippet below would
+    work, but should fail.  Every default option should be unset.
+
+        import rasterio as rio
+
+        with rio.Env():
+            pass
+
+        for key, val in rio.env.default_options:
+            assert rio.env.get_gdal_config(key) == val
+
+
+    https://github.com/mapbox/rasterio/issues/968
+    """
+    with rasterio.Env() as env:
+        # Previously this was populated with ``default_options``.  It should
+        # be empty if no parent environment exists.
+        assert not env.context_options
+        for key, val in default_options.items():
+            assert get_gdal_config(key) == val
+    for opt in default_options:
+        assert get_gdal_config(opt) is None

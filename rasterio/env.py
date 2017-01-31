@@ -142,8 +142,11 @@ class Env(object):
 
     def __enter__(self):
         log.debug("Entering env context: %r", self)
-        defenv()
-        self.context_options = getenv()
+        if _env is None:
+            defenv()
+            self.context_options = {}
+        else:
+            self.context_options = getenv()
         setenv(**self.options)
         log.debug("Entered env context: %r", self)
         return self
@@ -151,7 +154,11 @@ class Env(object):
     def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
         log.debug("Exiting env context: %r", self)
         delenv()
-        setenv(**self.context_options)
+        if self.context_options:
+            setenv(**self.context_options)
+        else:
+            global _env
+            _env = None
         log.debug("Exited env context: %r", self)
 
 
@@ -205,6 +212,11 @@ def ensure_env(f):
     calls any GDAL C functions."""
     @wraps(f)
     def wrapper(*args, **kwds):
-        with Env(WITH_RASTERIO_ENV=True):
+        if _env:
+            options = getenv()
+        else:
+            options = {}
+        options['WITH_RASTERIO_ENV'] = True
+        with Env(**options):
             return f(*args, **kwds)
     return wrapper
